@@ -9,7 +9,7 @@ android {
     compileSdk = 34
     defaultConfig {
         applicationId = "edu.cs371m.homesync"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -26,6 +26,10 @@ android {
     }
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+    // Enable Data Binding
+    buildFeatures {
+        dataBinding = true
     }
 }
 

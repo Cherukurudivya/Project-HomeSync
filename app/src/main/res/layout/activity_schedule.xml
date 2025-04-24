@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp">
+
+        <EditText
+            android:id="@+id/activityEditText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="Activity name"
+            android:inputType="text"
+            android:maxLines="1"
+            android:contentDescription="Enter activity name"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <EditText
+            android:id="@+id/dateEditText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="Select date (YYYY-MM-DD)"
+            android:inputType="none"
+            android:focusable="false"
+            android:contentDescription="Select schedule date"
+            app:layout_constraintTop_toBottomOf="@id/activityEditText"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp" />
+
+        <EditText
+            android:id="@+id/timeEditText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="Pick-up/Drop-off time"
+            android:inputType="none"
+            android:focusable="false"
+            android:contentDescription="Select schedule time"
+            app:layout_constraintTop_toBottomOf="@id/dateEditText"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp" />
+
+        <Spinner
+            android:id="@+id/assigneeSpinner"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:contentDescription="Select assignee"
+            app:layout_constraintTop_toBottomOf="@id/timeEditText"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp" />
+
+        <Button
+            android:id="@+id/saveScheduleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Save Schedule"
+            android:contentDescription="Save schedule"
+            app:layout_constraintTop_toBottomOf="@id/assigneeSpinner"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/backToDashboardButton"
+            android:layout_marginTop="16dp" />
+
+        <Button
+            android:id="@+id/backToDashboardButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Back to Dashboard"
+            android:contentDescription="Return to dashboard"
+            app:layout_constraintTop_toBottomOf="@id/assigneeSpinner"
+            app:layout_constraintStart_toEndOf="@id/saveScheduleButton"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp" />
+
+        <ListView
+            android:id="@+id/scheduleListView"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:contentDescription="List of schedules"
+            app:layout_constraintTop_toBottomOf="@id/saveScheduleButton"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            android:layout_marginTop="16dp" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
