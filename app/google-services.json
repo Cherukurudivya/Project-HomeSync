@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961397522766",
+    "project_id": "homesync-e696c",
+    "storage_bucket": "homesync-e696c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961397522766:android:6f3327e95e0da2b07b5e1f",
+        "android_client_info": {
+          "package_name": "edu.cs371m.homesync"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC_w6tcctolxy6t7CpVOR2e1j-3imxzTPg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
