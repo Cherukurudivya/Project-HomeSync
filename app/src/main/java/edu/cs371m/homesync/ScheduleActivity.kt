@@ -15,6 +15,7 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.*
 import edu.cs371m.homesync.databinding.ActivityScheduleBinding
@@ -29,9 +30,12 @@ class ScheduleActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private val users = mutableListOf<String>()
     private val userEmails = mutableMapOf<String, String>()
-    private val schedules = mutableListOf<Schedule>()
-    private lateinit var scheduleAdapter: ArrayAdapter<Schedule>
+    private val upcomingSchedules = mutableListOf<Schedule>()
+    private val pastSchedules = mutableListOf<Schedule>()
+    private lateinit var scheduleAdapter: ScheduleRecyclerAdapter
+    private lateinit var historyAdapter: HistoryRecyclerAdapter
     private var familyId: String? = null
+    private var userRole: String? = null
     private val TAG = "ScheduleActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,10 +61,10 @@ class ScheduleActivity : AppCompatActivity() {
         database.child("families").child(familyId!!).child("users").child(userId).child("role")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    val userRole = snapshot.getValue(String::class.java) ?: "kid"
+                    userRole = snapshot.getValue(String::class.java) ?: "kid"
                     if (userRole == "kid") {
                         Toast.makeText(this@ScheduleActivity, "Only parents can manage schedules", Toast.LENGTH_SHORT).show()
-                        finish() // Return to DashboardActivity
+                        finish()
                         return
                     }
                     initializeActivity()
@@ -80,8 +84,15 @@ class ScheduleActivity : AppCompatActivity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.assigneeSpinner.adapter = adapter
 
-        scheduleAdapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, schedules)
-        binding.scheduleListView.adapter = scheduleAdapter
+        scheduleAdapter = ScheduleRecyclerAdapter(upcomingSchedules, userRole ?: "parent") { scheduleId ->
+            deleteSchedule(scheduleId)
+        }
+        binding.scheduleRecyclerView.adapter = scheduleAdapter
+        binding.scheduleRecyclerView.layoutManager = LinearLayoutManager(this)
+
+        historyAdapter = HistoryRecyclerAdapter(pastSchedules)
+        binding.historyRecyclerView.adapter = historyAdapter
+        binding.historyRecyclerView.layoutManager = LinearLayoutManager(this)
 
         fetchFamilyMembers()
         fetchSchedules()
@@ -121,7 +132,7 @@ class ScheduleActivity : AppCompatActivity() {
         }
 
         binding.backToDashboardButton.setOnClickListener {
-            finish() // Return to DashboardActivity
+            finish()
         }
     }
 
@@ -171,7 +182,20 @@ class ScheduleActivity : AppCompatActivity() {
         database.child("families").child(familyId).child("schedules")
             .addValueEventListener(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
-                    schedules.clear()
+                    upcomingSchedules.clear()
+                    pastSchedules.clear()
+                    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("America/Chicago")
+                    }
+                    val todaySdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("America/Chicago")
+                    }
+                    val currentCalendar = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"))
+                    val today = todaySdf.format(currentCalendar.time)
+                    val currentHour = currentCalendar.get(Calendar.HOUR_OF_DAY)
+                    val currentMinute = currentCalendar.get(Calendar.MINUTE)
+                    val currentTimeInMinutes = currentHour * 60 + currentMinute
+
                     for (scheduleSnapshot in snapshot.children) {
                         val id = scheduleSnapshot.key ?: continue
                         val activity = scheduleSnapshot.child("activity").getValue(String::class.java) ?: ""
@@ -179,9 +203,32 @@ class ScheduleActivity : AppCompatActivity() {
                         val time = scheduleSnapshot.child("time").getValue(String::class.java) ?: ""
                         val assigneeEmail = scheduleSnapshot.child("assignee").getValue(String::class.java) ?: ""
                         val assigneeDisplayName = users.find { userEmails[it] == assigneeEmail } ?: assigneeEmail
-                        schedules.add(Schedule(id, activity, date, time, assigneeDisplayName))
+
+                        try {
+                            val scheduleTime = sdf.parse("$date $time")
+                            if (scheduleTime != null) {
+                                val calendar = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"))
+                                calendar.time = scheduleTime
+                                val scheduleDate = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(scheduleTime)
+                                val scheduleHour = calendar.get(Calendar.HOUR_OF_DAY)
+                                val scheduleMinute = calendar.get(Calendar.MINUTE)
+                                val scheduleTimeInMinutes = scheduleHour * 60 + scheduleMinute
+
+                                val schedule = Schedule(id, activity, date, time, assigneeDisplayName)
+                                if (scheduleDate < today || (scheduleDate == today && scheduleTimeInMinutes < currentTimeInMinutes)) {
+                                    pastSchedules.add(schedule)
+                                } else {
+                                    upcomingSchedules.add(schedule)
+                                }
+                            } else {
+                                Log.e(TAG, "Failed to parse schedule time: $date $time")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing schedule: ${e.message}")
+                        }
                     }
                     scheduleAdapter.notifyDataSetChanged()
+                    historyAdapter.notifyDataSetChanged()
                 }
 
                 override fun onCancelled(error: DatabaseError) {
@@ -192,10 +239,22 @@ class ScheduleActivity : AppCompatActivity() {
 
     private fun saveSchedule(activity: String, date: String, time: String, assigneeEmail: String) {
         val familyId = familyId ?: return
+
+        val validatedDate = if (date.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) {
+            date
+        } else {
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("America/Chicago")
+            }.format(Date())
+        }
+        if (!time.matches(Regex("\\d{2}:\\d{2}"))) {
+            Toast.makeText(this, "Invalid time format (use HH:MM, e.g., 21:10 CDT)", Toast.LENGTH_SHORT).show()
+            return
+        }
         val scheduleId = database.child("families").child(familyId).child("schedules").push().key ?: return
         val schedule = mapOf(
             "activity" to activity,
-            "date" to date,
+            "date" to validatedDate,
             "time" to time,
             "assignee" to assigneeEmail
         )
@@ -206,83 +265,74 @@ class ScheduleActivity : AppCompatActivity() {
                 binding.activityEditText.text.clear()
                 binding.dateEditText.text.clear()
                 binding.timeEditText.text.clear()
-                scheduleNotification(scheduleId, activity, date, time, assigneeEmail)
+                scheduleNotification(scheduleId, activity, validatedDate, time, assigneeEmail)
             }
             .addOnFailureListener {
                 Toast.makeText(this, "Error saving schedule", Toast.LENGTH_SHORT).show()
             }
     }
 
-    /*private fun deleteScheduledActivity(taskId: String) {
-        if (userRole != "parent") {
-            Toast.makeText(this, "Only parents can delete tasks", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val familyId = familyId ?: return
-        database.child("families").child(familyId).child("tasks").child(taskId)
-            .removeValue()
-            .addOnSuccessListener {
-                Toast.makeText(this, "Task deleted", Toast.LENGTH_SHORT).show()
-            }
-            .addOnFailureListener {
-                Toast.makeText(this, "Error deleting task", Toast.LENGTH_SHORT).show()
-            }
-    } */
-
     private fun scheduleNotification(scheduleId: String, activity: String, date: String, time: String, assigneeEmail: String) {
         try {
-            // Check POST_NOTIFICATIONS permission
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     Log.w(TAG, "POST_NOTIFICATIONS permission not granted")
                     runOnUiThread {
-                        Toast.makeText(
-                            this,
-                            "Please enable notifications in app settings to receive schedule reminders",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(this, "Enable notifications in settings for reminders", Toast.LENGTH_LONG).show()
                     }
                     return
                 }
             }
 
-            // Use UTC timezone for parsing
-            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-            sdf.isLenient = false
-            Log.d(TAG, "Parsing schedule: $date $time")
-            val scheduleTime = sdf.parse("$date $time")
-            if (scheduleTime == null) {
-                Log.e(TAG, "Failed to parse date and time: $date $time")
+            // Validate inputs
+            if (!date.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) || !time.matches(Regex("\\d{2}:\\d{2}"))) {
+                Log.e(TAG, "Invalid format: date=$date, time=$time")
                 runOnUiThread {
-                    Toast.makeText(this, "Invalid date or time format", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Invalid format (use YYYY-MM-DD HH:MM CDT)", Toast.LENGTH_SHORT).show()
                 }
                 return
             }
 
-            // Convert to local timezone for notification
-            val calendar = Calendar.getInstance(TimeZone.getDefault())
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("America/Chicago")
+            }
+            sdf.isLenient = false
+            Log.d(TAG, "Input: date=$date, time=$time, Device timezone: ${TimeZone.getDefault().id}")
+            val scheduleTime = sdf.parse("$date $time")
+            if (scheduleTime == null) {
+                Log.e(TAG, "Failed to parse: $date $time")
+                runOnUiThread {
+                    Toast.makeText(this, "Invalid date/time format", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+
+            val calendar = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"))
             calendar.time = scheduleTime
             calendar.add(Calendar.MINUTE, -15)
             val notificationTime = calendar.timeInMillis
-            val localSdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply {
-                timeZone = TimeZone.getDefault()
-            }
-            Log.d(TAG, "Event time: ${localSdf.format(scheduleTime)}, Notification time: ${localSdf.format(Date(notificationTime))}")
 
-            // Validate notification time is in the future
-            val currentTime = System.currentTimeMillis()
+            // Get current time in CDT
+            val currentCalendar = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"))
+            val currentTime = currentCalendar.timeInMillis
+
+            val localSdf = SimpleDateFormat("yyyy-MM-dd HH:mm z", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("America/Chicago")
+            }
+            Log.d(TAG, "Event: ${localSdf.format(scheduleTime)}, Notification: ${localSdf.format(Date(notificationTime))}, Current: ${localSdf.format(Date(currentTime))}")
+
+            val minNotificationTime = currentTime + 5 * 60 * 1000 // 5 minutes
             if (notificationTime < currentTime) {
-                Log.d(TAG, "Notification time is in the past: $notificationTime (current: $currentTime)")
+                Log.d(TAG, "Notification in past: $notificationTime (current: $currentTime)")
                 runOnUiThread {
-                    Toast.makeText(
-                        this,
-                        "Cannot schedule notification: Time is too close to now. Please select a time at least 15 minutes in the future.",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(this, "Cannot schedule: Event has passed.", Toast.LENGTH_LONG).show()
                 }
                 return
+            } else if (notificationTime < minNotificationTime) {
+                Log.d(TAG, "Notification too close: $notificationTime (min: $minNotificationTime)")
+                runOnUiThread {
+                    Toast.makeText(this, "Scheduled, but less than 15 min away. Allow 5 min.", Toast.LENGTH_LONG).show()
+                }
             }
 
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -290,11 +340,7 @@ class ScheduleActivity : AppCompatActivity() {
                 if (!alarmManager.canScheduleExactAlarms()) {
                     Log.w(TAG, "SCHEDULE_EXACT_ALARM permission not granted")
                     runOnUiThread {
-                        Toast.makeText(
-                            this,
-                            "Please enable exact alarms in settings to receive schedule reminders",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(this, "Enable exact alarms in settings", Toast.LENGTH_LONG).show()
                     }
                     return
                 }
@@ -324,5 +370,21 @@ class ScheduleActivity : AppCompatActivity() {
                 Toast.makeText(this, "Error scheduling notification", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun deleteSchedule(scheduleId: String) {
+        if (userRole != "parent") {
+            Toast.makeText(this, "Only parents can delete schedules", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val familyId = familyId ?: return
+        database.child("families").child(familyId).child("schedules").child(scheduleId)
+            .removeValue()
+            .addOnSuccessListener {
+                Toast.makeText(this, "Schedule deleted", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener {
+                Toast.makeText(this, "Error deleting schedule", Toast.LENGTH_SHORT).show()
+            }
     }
 }

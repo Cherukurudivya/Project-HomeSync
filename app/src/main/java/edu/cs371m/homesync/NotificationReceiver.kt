@@ -14,7 +14,7 @@ class NotificationReceiver : BroadcastReceiver() {
     private val TAG = "NotificationReceiver"
 
     override fun onReceive(context: Context, intent: Intent) {
-        // Check for POST_NOTIFICATIONS permission (required for Android 13+)
+
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "POST_NOTIFICATIONS permission not granted; cannot send notification")
             return

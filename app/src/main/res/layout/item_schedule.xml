@@ -14,7 +14,7 @@
         android:textColor="@color/text_primary"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@id/scheduleTime"
+        app:layout_constraintEnd_toStartOf="@id/deleteScheduleButton"
         app:layout_constraintHorizontal_bias="0.0" />
 
     <TextView
@@ -24,7 +24,7 @@
         android:textSize="14sp"
         android:textColor="@color/text_secondary"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toStartOf="@id/deleteScheduleButton" />
 
     <TextView
         android:id="@+id/scheduleAssignee"
@@ -34,6 +34,16 @@
         android:textColor="@color/text_secondary"
         app:layout_constraintTop_toBottomOf="@id/scheduleActivity"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/deleteScheduleButton" />
+
+    <Button
+        android:id="@+id/deleteScheduleButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Delete"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

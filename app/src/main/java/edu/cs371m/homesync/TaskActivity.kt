@@ -16,7 +16,7 @@ class TaskActivity : AppCompatActivity() {
     private lateinit var database: DatabaseReference
     private lateinit var auth: FirebaseAuth
     private val users = mutableListOf<String>()
-    private val userEmails = mutableMapOf<String, String>() // Maps display name to email
+    private val userEmails = mutableMapOf<String, String>()
     private val tasks = mutableListOf<Task>()
     private lateinit var taskAdapter: TaskAdapter
     private var userRole: String? = null

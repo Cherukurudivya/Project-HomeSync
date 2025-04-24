@@ -26,17 +26,14 @@ class MainActivity : AppCompatActivity() {
         auth = Firebase.auth
         database = FirebaseDatabase.getInstance().reference
 
-        // Sign out to force manual login
         auth.signOut()
         Log.d(TAG, "Signed out on app launch")
 
-        // Setup role spinner
         val roles = listOf("parent", "kid")
         val roleAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, roles)
         roleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.roleSpinner.adapter = roleAdapter
 
-        // Always show login UI
         setupLogin()
     }
 

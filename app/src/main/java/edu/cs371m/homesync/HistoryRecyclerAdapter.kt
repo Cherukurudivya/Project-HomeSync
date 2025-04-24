@@ -7,11 +7,9 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-class ScheduleRecyclerAdapter(
-    private val schedules: List<Schedule>,
-    private val userRole: String,
-    private val onDeleteClick: (String) -> Unit
-) : RecyclerView.Adapter<ScheduleRecyclerAdapter.ViewHolder>() {
+class HistoryRecyclerAdapter(
+    private val schedules: List<Schedule>
+) : RecyclerView.Adapter<HistoryRecyclerAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val activityTextView: TextView = view.findViewById(R.id.scheduleActivity)
@@ -31,12 +29,7 @@ class ScheduleRecyclerAdapter(
         holder.activityTextView.text = schedule.activity
         holder.timeTextView.text = "${schedule.date} ${schedule.time}"
         holder.assigneeTextView.text = "Assigned to: ${schedule.assignee}"
-        holder.deleteButton.visibility = if (userRole == "parent") View.VISIBLE else View.GONE
-        holder.deleteButton.setOnClickListener {
-            if (userRole == "parent") {
-                onDeleteClick(schedule.id)
-            }
-        }
+        holder.deleteButton.visibility = View.GONE
     }
 
     override fun getItemCount(): Int = schedules.size

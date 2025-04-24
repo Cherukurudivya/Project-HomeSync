@@ -38,7 +38,6 @@ class DashboardActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
         database = FirebaseDatabase.getInstance().reference
 
-        // Restore familyId and userRole from saved state or intent
         familyId = savedInstanceState?.getString(KEY_FAMILY_ID) ?: intent.getStringExtra("familyId")
         userRole = intent.getStringExtra("userRole") ?: "kid"
         Log.d(TAG, "Received familyId: $familyId, userRole: $userRole")
@@ -81,12 +80,13 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     private fun initializeUI() {
-        // Initialize adapters
         taskAdapter = TaskRecyclerAdapter(tasks)
         binding.tasksRecyclerView.adapter = taskAdapter
         binding.tasksRecyclerView.layoutManager = LinearLayoutManager(this)
 
-        scheduleAdapter = ScheduleRecyclerAdapter(schedules)
+        scheduleAdapter = ScheduleRecyclerAdapter(schedules, "kid") { _ ->
+            // No delete functionality on dashboard
+        }
         binding.schedulesRecyclerView.adapter = scheduleAdapter
         binding.schedulesRecyclerView.layoutManager = LinearLayoutManager(this)
 
@@ -161,7 +161,7 @@ class DashboardActivity : AppCompatActivity() {
                 override fun onCancelled(error: DatabaseError) {
                     Log.e(TAG, "Error fetching user role: ${error.message}")
                     Toast.makeText(this@DashboardActivity, "Error fetching user role: ${error.message}", Toast.LENGTH_SHORT).show()
-                    binding.goToSchedulesButton.visibility = View.GONE // Fallback to kid view
+                    binding.goToSchedulesButton.visibility = View.GONE
                 }
             })
     }
@@ -191,7 +191,7 @@ class DashboardActivity : AppCompatActivity() {
                     userDisplayNames.clear()
                     for (userSnapshot in snapshot.children) {
                         val email = userSnapshot.child("email").getValue(String::class.java)
-                        val displayName = snapshot.child("displayName").getValue(String::class.java)
+                        val displayName = userSnapshot.child("displayName").getValue(String::class.java)
                             ?: email
                         if (email != null && displayName != null) {
                             userDisplayNames[email] = displayName
@@ -246,20 +246,44 @@ class DashboardActivity : AppCompatActivity() {
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     schedules.clear()
-                    val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("America/Chicago")
+                    }
+                    val todaySdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("America/Chicago")
+                    }
+                    val currentCalendar = Calendar.getInstance(TimeZone.getTimeZone("America/Chicago"))
+                    val today = todaySdf.format(currentCalendar.time)
+                    Log.d(TAG, "Today: $today, Current time: ${sdf.format(currentCalendar.time)}")
+
                     for (scheduleSnapshot in snapshot.children) {
                         val id = scheduleSnapshot.key ?: continue
                         val activity = scheduleSnapshot.child("activity").getValue(String::class.java) ?: ""
                         val date = scheduleSnapshot.child("date").getValue(String::class.java) ?: "N/A"
                         val time = scheduleSnapshot.child("time").getValue(String::class.java) ?: ""
                         val assigneeEmail = scheduleSnapshot.child("assignee").getValue(String::class.java) ?: ""
-                        if (date == today) {
-                            val assigneeDisplayName = userDisplayNames[assigneeEmail] ?: assigneeEmail
-                            schedules.add(Schedule(id, activity, date, time, assigneeDisplayName))
+                        Log.d(TAG, "Processing schedule: id=$id, date=$date, time=$time, activity=$activity")
+
+                        try {
+                            val scheduleTime = sdf.parse("$date $time")
+                            if (scheduleTime != null) {
+                                val scheduleDate = todaySdf.format(scheduleTime)
+                                Log.d(TAG, "Parsed schedule: date=$scheduleDate, time=$time")
+                                if (scheduleDate == today) {
+                                    val assigneeDisplayName = userDisplayNames[assigneeEmail] ?: assigneeEmail
+                                    schedules.add(Schedule(id, activity, date, time, assigneeDisplayName))
+                                    Log.d(TAG, "Added schedule to dashboard: $activity at $time")
+                                }
+                            } else {
+                                Log.e(TAG, "Failed to parse schedule time: $date $time")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing schedule: ${e.message}")
                         }
                     }
                     scheduleAdapter.notifyDataSetChanged()
                     binding.loadingProgressBar.visibility = View.GONE
+                    Log.d(TAG, "Schedules loaded: ${schedules.size}")
                 }
 
                 override fun onCancelled(error: DatabaseError) {
